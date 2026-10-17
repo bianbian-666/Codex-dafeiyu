@@ -100,3 +100,5 @@ docs/            使用说明与兼容性记录
 - Electron、Node.js 及所有相关开源依赖。
 
 本项目保留上游 MIT 版权与许可证。代码及二次开发说明见 [LICENSE](LICENSE)，各来源与素材范围见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。上游的功能、兼容平台与更新机制不等于本修改版已经支持，请以本仓库说明为准。
+
+代码按 MIT 说明；继承自 dsh-pet 的动画、动作提示词和源视频遵循上游的非商业开源使用要求，并保留[原作者地址](https://github.com/PC2005-cloud/dsh-pet)。见[素材使用说明](licenses/dsh-pet-ASSET-NOTICE.txt)。

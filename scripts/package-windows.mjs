@@ -34,6 +34,8 @@ const {rcedit}=await import('rcedit');
 await rcedit(join(output,'Codex-dafeiyu.exe'),{'icon':join(app,'assets','icon.ico'),'file-version':pkg.version,'product-version':pkg.version,'version-string':{'ProductName':'Codex-dafeiyu','FileDescription':'Codex-dafeiyu','InternalName':'Codex-dafeiyu','OriginalFilename':'Codex-dafeiyu.exe'}});
 cpSync(join(root,'licenses'),join(output,'licenses'),{recursive:true});
 copyFileSync(join(root,'README.md'),join(output,'README.md'));
+copyFileSync(join(root,'LICENSE'),join(output,'PROJECT-LICENSE.txt'));
+copyFileSync(join(root,'THIRD_PARTY_NOTICES.md'),join(output,'THIRD_PARTY_NOTICES.md'));
 copyFileSync(join(root,'docs','使用说明.md'),join(output,'使用说明.md'));
 writeFileSync(join(output,'build-info.json'),JSON.stringify({version:pkg.version,platform:process.platform,arch:process.arch,node:process.versions.node,electron:require('electron/package.json').version},null,2)+'\n');
 console.log('Portable package ready: '+output);
