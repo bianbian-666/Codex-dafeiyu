@@ -1,0 +1,8 @@
+{
+  "name": "codex-pet",
+  "productName": "蓝色大肥鱼codex桌宠",
+  "version": "1.3.2",
+  "description": "Codex 桌面陪伴与额度管理",
+  "main": "main.cjs",
+  "private": true
+}

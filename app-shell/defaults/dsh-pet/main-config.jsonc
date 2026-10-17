@@ -1,0 +1,24 @@
+{
+  "notificationsEnabled": false,
+  "eventsRefreshSec": {
+    "balance": 300,
+    "whisper": 600
+  },
+  "pets": [
+    {
+      "name": "蓝毛小女仆",
+      "id": "main",
+      "size": 400,
+      "balanceEnabled": true,
+      "whisperEnabled": true,
+      "workStatusEnabled": true,
+      "fixedEnabled": false,
+      "display": "desktop",
+      "position": {
+        "corner": "bottom-right",
+        "marginX": 60,
+        "marginY": 40
+      }
+    }
+  ]
+}

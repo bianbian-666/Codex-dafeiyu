@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+<title>蓝色大肥鱼codex桌宠</title><link rel="stylesheet" href="panel.css"></head><body>
+<header><img src="assets/logo.jpg" alt="蓝色大肥鱼codex桌宠图标"><div><p class="eyebrow">YOUR LITTLE DESKTOP COMPANION</p><h1>蓝色大肥鱼codex桌宠</h1><p>我们codex用户也要有自己的大肥鱼！</p></div></header>
+<main>
+<section class="status-card"><span class="dot"></span><div><small>此刻的我</small><p id="activity" aria-live="polite">正在准备与你见面…</p></div></section>
+<section class="quota-card"><div class="section-title"><h2>Codex 额度 <span id="plan"></span></h2><button class="text-button" data-action="quota">刷新</button></div><div id="quota"><p class="muted">正在读取额度…</p></div><small class="muted">只读查询，不额外调用模型</small></section>
+<div class="actions"><button class="primary" data-action="toggle" id="visibility">隐藏桌宠</button><button data-action="quote">碎碎念 · 来一句</button></div>
+<section class="quota-card"><div class="section-title"><h2>重置小雷达</h2><button class="text-button" data-action="reset">查询 Codex 重置</button></div><p id="reset-result">点查询，本鱼去蹲消息～</p><small class="muted">来源 codex-reset.com · 暗示与概率不算官方预告</small></section>
+<section class="quota-card chat-card"><div class="section-title"><h2>和本鱼聊天</h2><button class="text-button" data-action="open-codex">打开 Codex</button></div><div class="chat-toolbar"><button id="chat-expand" aria-expanded="false">展开对话</button><button id="chat-new">＋ 新建聊天</button></div>
+<div id="chat-expanded" hidden><label>聊天记录<select id="chat-sessions" aria-label="切换聊天"></select></label><div id="chat-history" role="log" aria-label="和大肥鱼的聊天记录"></div></div>
+<div class="chat-preferences"><label>回复模式<select id="chat-mode"><option value="auto">自动：当前账号推荐模型 · low</option><option value="sol">原有：最低版本 Sol · low</option><option value="luna">轻快：最低版本 Luna · low</option></select></label><label class="memory-toggle"><input type="checkbox" id="chat-memory">关联 Codex 对我的了解</label><details><summary>关于我的画像：查看、补充与纠正</summary><p class="muted">用于了解你的身份、正在做的事、兴趣和偏好。开启时随你主动发送的消息使用，可随时关闭。</p><pre id="memory-preview"></pre><label for="profile-notes">我的补充或纠正（优先于旧记忆）</label><textarea id="profile-notes" maxlength="3000" placeholder="例如：我是……；我最近正在……；我喜欢……；请叫我……。不知道或不想提供的可以不填。"></textarea><button id="profile-save" type="button">保存我的画像</button><p id="profile-status" role="status"></p></details></div><p class="muted">发送才消耗额度 · 回复逐字显示 · 每个聊天独立上下文</p><form id="chat-form"><textarea id="chat-input" maxlength="2000" placeholder="给本鱼带小鱼干了吗？" required></textarea><button id="chat-send" class="primary">发送</button></form><p id="chat-result" role="status"></p></section>
+<section class="settings"><h2>照顾你的小伙伴</h2><button data-action="quotes"><span>自定义语录</span><span>编辑 ›</span></button><button data-action="settings"><span>大小、位置与功能</span><span>设置 ›</span></button><button data-action="folder"><span>我的数据文件夹</span><span>打开 ›</span></button></section>
+<p id="notice" role="status"></p>
+</main><footer><span>v1.3.2 · 关闭窗口后留在托盘</span><button data-action="quit" class="text-button">退出软件</button></footer>
+<script src="panel.js"></script><script src="chat-panel.js"></script></body></html>
+
+

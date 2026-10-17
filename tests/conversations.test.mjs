@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtempSync,mkdirSync,writeFileSync,readFileSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
+import {conversations,readUserSummary} from '../backend/runtime/pet-conversations.mjs';
+test('migrate history, new isolated chat, stream, reject overlap, settings and switch',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'pet-chat-test-'));mkdirSync(join(dir,'dsh-pet'));writeFileSync(join(dir,'dsh-pet','memory.json'),JSON.stringify({main:{main:{messages:[{role:'user',content:'old'}]}}}));
+ let complete;const service=conversations(dir,async(text,history,root,options)=>{assert.equal(history.length,0);assert.equal(options.mode,'luna');assert.equal(options.memory,'');options.onDelta('收到');await new Promise(r=>complete=r);return {ok:true,text:'收到啦',model:'gpt-5.6-luna'};});
+ const old=service.snapshot().active;assert.equal(service.snapshot().messages[0].content,'old');await service.command({action:'new'});assert.equal(service.snapshot().messages.length,0);
+ await service.command({action:'settings',mode:'luna',useMemory:false});const response=service.command({action:'send',text:'new question'});assert.equal(service.snapshot().pending.text,'收到');assert.equal((await service.command({action:'new'})).ok,false);complete();assert.equal((await response).ok,true);assert.equal(service.snapshot().messages[1].content,'收到啦');
+ await service.command({action:'select',id:old});assert.equal(service.snapshot().messages.length,1);assert.equal(JSON.parse(readFileSync(join(dir,'pet-conversations.json'))).sessions.length,2);assert.ok(readFileSync(join(dir,'dsh-pet','memory.json'),'utf8').includes('old'));
+});
+test('missing summary and bounded read',()=>{const dir=mkdtempSync(join(tmpdir(),'pet-summary-test-'));assert.equal(readUserSummary(dir).available,false);mkdirSync(join(dir,'memories'));writeFileSync(join(dir,'memories','memory_summary.md'),'## User Profile'+String.fromCharCode(10)+'x'.repeat(6000));assert.equal(readUserSummary(dir).text.length,4500);});
