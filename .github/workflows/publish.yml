@@ -1,0 +1,71 @@
+name: Verify source and publish v1.3.2
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - name: Download and verify the tested source archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceDir = Join-Path $env:RUNNER_TEMP 'codex-dafeiyu-source'
+          New-Item -ItemType Directory -Path $sourceDir | Out-Null
+          gh release download v1.3.2 --pattern 'codex-dafeiyu-v1.3.2-source.zip' --dir $sourceDir
+          if ($LASTEXITCODE -ne 0) { throw 'Source download failed' }
+          $archive = Join-Path $sourceDir 'codex-dafeiyu-v1.3.2-source.zip'
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLower() -ne '41c97837f0eb83c89ec71df74ebe36570b8f33c8d9ea4d3b29c228eef1f3b752') { throw 'Source checksum mismatch' }
+          $unpacked = Join-Path $env:RUNNER_TEMP 'codex-dafeiyu-unpacked'
+          Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
+          git config core.autocrlf false
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -- .github/workflows/publish.yml
+          Get-ChildItem -LiteralPath $unpacked -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $env:GITHUB_WORKSPACE -Recurse -Force }
+          git add --all
+          $tree = (git write-tree).Trim()
+          if ($tree -ne 'd1d32ef44607fe2cd5ad818443dcbd29f676e7ec') { throw 'Imported files differ from the tested source tree' }
+          git commit -m 'Release v1.3.2: verified Codex Dafeiyu source, compatibility fixes and upstream credits'
+          if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
+          git push origin 'HEAD:main'
+          if ($LASTEXITCODE -ne 0) { throw 'Source push failed' }
+          $commit = (git rev-parse HEAD).Trim()
+          "RELEASE_COMMIT=$commit" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Install locked dependencies
+        shell: pwsh
+        run: |
+          npm ci --ignore-scripts=false --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix backend ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Rebuild and run 122 release checks on a clean Windows host
+        shell: pwsh
+        run: |
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:backend
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify release files and publish the draft
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $env:RUNNER_TEMP 'codex-dafeiyu-release'
+          New-Item -ItemType Directory -Path $releaseDir | Out-Null
+          gh release download v1.3.2 --pattern 'CodexPet-v1.3.2-windows-x64.zip' --dir $releaseDir
+          if ($LASTEXITCODE -ne 0) { throw 'Portable package download failed' }
+          $portable = Join-Path $releaseDir 'CodexPet-v1.3.2-windows-x64.zip'
+          if ((Get-FileHash -LiteralPath $portable -Algorithm SHA256).Hash.ToLower() -ne '1d769338507c0d01c9adcfd3a1dbd420c89861ee8826ec03bd8d080f0affedd5') { throw 'Portable checksum mismatch' }
+          gh release edit v1.3.2 --target $env:RELEASE_COMMIT --draft=false --latest --notes-file CHANGELOG.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
