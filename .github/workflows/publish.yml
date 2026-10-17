@@ -65,7 +65,11 @@ jobs:
             if ($pkg.version -ne $version -or $pkg.productName -ne 'Codex-dafeiyu') { throw 'Wrong app version or product name' }
           } finally { $zip.Dispose() }
           git config core.autocrlf false
-          git checkout-index --force --all
+          git config core.eol lf
+          git reset --hard HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Runner checkout normalization failed' }
+          git update-index --refresh
+          if ($LASTEXITCODE -ne 0 -or (git status --porcelain)) { throw 'Runner checkout is not clean before source import' }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git bundle verify $bundle
