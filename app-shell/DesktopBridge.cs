@@ -24,7 +24,7 @@ class DesktopBridge {
   var name=new StringBuilder(128);GetClassName(h,name,128);
   if(name.ToString()=="Progman"||name.ToString()=="WorkerW"||name.ToString()=="Shell_TrayWnd")return false;
   uint pid;GetWindowThreadProcessId(h,out pid);
-  try {if(Process.GetProcessById((int)pid).ProcessName=="CodexPet")return false;}catch{return false;}
+  try {var processName=Process.GetProcessById((int)pid).ProcessName;if(processName=="CodexPet"||processName=="Codex-dafeiyu")return false;}catch{return false;}
   Rect r;if(!GetWindowRect(h,out r))return false;
   var m=new MonitorInfo();m.size=Marshal.SizeOf(m);if(!GetMonitorInfo(MonitorFromWindow(h,2),ref m))return false;
   return r.L<=m.monitor.L+2&&r.T<=m.monitor.T+2&&r.R>=m.monitor.R-2&&r.B>=m.monitor.B-2;

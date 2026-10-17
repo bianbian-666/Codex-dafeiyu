@@ -8,13 +8,16 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg=JSON.parse(readFileSync(join(root,'package.json'),'utf8'));
 if(process.platform!=='win32'||process.arch!=='x64')throw new Error('此打包脚本目前仅验证 Windows x64；请使用 Windows x64 Node.js 24+');
 if(Number(process.versions.node.split('.')[0])<24)throw new Error('需要 Node.js 24+（任务状态读取使用内置 SQLite）');
-const output=join(root,'dist',`CodexPet-v${pkg.version}-windows-x64`);
+const output=join(root,'dist',`Codex-dafeiyu-v${pkg.version}-windows-x64`);
 if(existsSync(output))throw new Error('输出目录已存在，请先将上一份打包结果移到其他位置：'+output);
 const backend=join(root,'backend');
 if(!existsSync(join(backend,'lib','standalone.js')))throw new Error('请先运行 npm run build');
-if(!existsSync(join(dirname(require.resolve('electron/package.json')),'dist')))throw new Error('Electron 运行时尚未下载，请运行 npm rebuild electron --ignore-scripts=false');
+const electronRoot=dirname(require.resolve('electron/package.json'));
+// New npm versions may skip dependency install scripts even after a successful ci.
+if(!existsSync(join(electronRoot,'dist')))execFileSync(process.execPath,[join(electronRoot,'install.js')],{windowsHide:true,stdio:'inherit'});
+if(!existsSync(join(electronRoot,'dist')))throw new Error('Electron 运行时下载未完成，请检查网络后重新打包');
 cpSync(join(dirname(require.resolve('electron/package.json')),'dist'), output, {recursive:true});
-renameSync(join(output,'electron.exe'),join(output,'CodexPet.exe'));
+renameSync(join(output,'electron.exe'),join(output,'Codex-dafeiyu.exe'));
 const app=join(output,'resources','app');
 cpSync(join(root,'app-shell'),app,{recursive:true,filter:p=>!p.endsWith('.cs')&&!p.endsWith('.exe')});
 copyFileSync(process.execPath,join(app,'node.exe'));
@@ -28,7 +31,7 @@ execFileSync(process.execPath,[process.env.npm_execpath,'ci','--omit=dev','--leg
 const compiler=join(process.env.WINDIR||'C:\\Windows','Microsoft.NET','Framework64','v4.0.30319','csc.exe');
 execFileSync(compiler,['/nologo','/target:winexe','/out:'+join(app,'DesktopBridge.exe'),join(root,'app-shell','DesktopBridge.cs')],{windowsHide:true,stdio:'inherit'});
 const {rcedit}=await import('rcedit');
-await rcedit(join(output,'CodexPet.exe'),{'icon':join(app,'assets','icon.ico'),'file-version':pkg.version,'product-version':pkg.version,'version-string':{'ProductName':'蓝色大肥鱼 Codex 桌宠','FileDescription':'蓝色大肥鱼 Codex 桌宠','InternalName':'CodexPet','OriginalFilename':'CodexPet.exe'}});
+await rcedit(join(output,'Codex-dafeiyu.exe'),{'icon':join(app,'assets','icon.ico'),'file-version':pkg.version,'product-version':pkg.version,'version-string':{'ProductName':'Codex-dafeiyu','FileDescription':'Codex-dafeiyu','InternalName':'Codex-dafeiyu','OriginalFilename':'Codex-dafeiyu.exe'}});
 cpSync(join(root,'licenses'),join(output,'licenses'),{recursive:true});
 copyFileSync(join(root,'README.md'),join(output,'README.md'));
 copyFileSync(join(root,'docs','使用说明.md'),join(output,'使用说明.md'));

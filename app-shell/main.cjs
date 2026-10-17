@@ -80,7 +80,7 @@ if (process.env.CODEX_PET_HELPER === '1') {
     }
     function createPanel() {
       panel = new BrowserWindow({ width: 490, height: 820, minWidth: 440, minHeight: 640,
-        title: '蓝色大肥鱼codex桌宠', icon, backgroundColor: '#f6f8ff', autoHideMenuBar: true,
+        title: 'Codex-dafeiyu', icon, backgroundColor: '#f6f8ff', autoHideMenuBar: true,
         webPreferences: { preload: path.join(root, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
       panel.loadFile(path.join(root, 'panel.html'));
       panel.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -99,7 +99,7 @@ if (process.env.CODEX_PET_HELPER === '1') {
         { label: '碎碎念 · 来一句', click: () => { setVisible(true); void request('/dsh-pet-7340/whisper?pet=main', 'POST').catch(() => {}); } },
         { type: 'separator' },
         { label: '编辑语录', click: () => shell.openPath(path.join(data, 'quotes.json')) },
-        { label: '退出蓝色大肥鱼codex桌宠', click: quitApp },
+        { label: '退出Codex-dafeiyu', click: quitApp },
       ]));
     }
     async function quitApp() {
@@ -118,7 +118,7 @@ if (process.env.CODEX_PET_HELPER === '1') {
       setVisible(true);
       desktopGuard = spawn(path.join(root, 'DesktopBridge.exe'), [String(process.pid), path.join(data, 'fullscreen.json')], {windowsHide:true,stdio:'ignore'});
       desktopGuard.on('error',()=>{});
-      tray = new Tray(icon); tray.setToolTip('蓝色大肥鱼codex桌宠 · Codex'); tray.on('click', showPanel); updateTray();
+      tray = new Tray(icon); tray.setToolTip('Codex-dafeiyu'); tray.on('click', showPanel); updateTray();
       ipcMain.handle('pet:status', async () => {
         try {
           const result = await request('/dsh-pet-7340/state');

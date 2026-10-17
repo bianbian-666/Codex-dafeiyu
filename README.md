@@ -1,4 +1,4 @@
-# 蓝色大肥鱼 Codex 桌宠 🐟
+# Codex-dafeiyu 🐟
 
 ## 我们codex用户也要有自己的大肥鱼！
 
@@ -27,7 +27,7 @@
 
 ## 下载与使用
 
-到 [Releases](https://github.com/bianbian-666/codex-dafeiyu/releases) 下载 Windows x64 便携包，**完整解压**到一个准备长期保留的目录，然后双击 `CodexPet.exe`。发布包包含 Node.js、Electron 和动画，无需另外安装 Node.js、DSH 或 Python。
+到 [Releases](https://github.com/bianbian-666/Codex-dafeiyu/releases) 下载 Windows x64 便携包，**完整解压**到一个准备长期保留的目录，然后双击 `Codex-dafeiyu.exe`。发布包包含 Node.js、Electron 和动画，无需另外安装 Node.js、DSH 或 Python。
 
 - 系统范围：Windows 10/11 x64。当前没有经过验证的 macOS、Linux 或 Windows ARM64 安装包。
 - 看额度、聊天、工作状态需要本机安装 Codex，并使用 ChatGPT 账号登录。额度窗口与模型由账号和 Codex 接口决定。
@@ -59,8 +59,8 @@
 在 Windows x64 上安装 Node.js 24 LTS 或更新版本，然后运行：
 
 ```powershell
-git clone https://github.com/bianbian-666/codex-dafeiyu.git
-cd codex-dafeiyu
+git clone https://github.com/bianbian-666/Codex-dafeiyu.git
+cd Codex-dafeiyu
 npm ci --ignore-scripts=false
 npm --prefix backend ci --legacy-peer-deps --ignore-scripts
 npm run build
@@ -69,7 +69,7 @@ npm run test:backend
 npm run package:win
 ```
 
-打包结果位于 `dist/CodexPet-v<版本>-windows-x64/`。打包时使用当前运行的 Windows x64 Node.js，Electron 版本由根目录锁文件固定，并调用 Windows .NET Framework 自带的 C# 编译器生成桌面桥接程序。
+打包结果位于 `dist/Codex-dafeiyu-v<版本>-windows-x64/`。打包时使用当前运行的 Windows x64 Node.js，Electron 版本由根目录锁文件固定，并调用 Windows .NET Framework 自带的 C# 编译器生成桌面桥接程序。
 
 `backend` 保留 dsh-pet 原有的插件与素材结构。这里使用独立入口及替身，不需要安装 DSH；`--legacy-peer-deps` 用于避免安装上游插件模式的 DSH 宿主依赖。完整 DSH 插件类型检查不属于此独立版的发布检查。
 

@@ -11,8 +11,8 @@ async function freePort(){const s=net.createServer();await new Promise(r=>s.list
 
 (async()=>{
  const root=path.resolve(__dirname,'..'),version=require('../package.json').version;
- const original=path.join(root,'dist',`CodexPet-v${version}-windows-x64`);
- const relocated=path.join(root,'dist',`中文 空格 # CodexPet-v${version}`);
+ const original=path.join(root,'dist',`Codex-dafeiyu-v${version}-windows-x64`);
+ const relocated=path.join(root,'dist',`中文 空格 # Codex-dafeiyu-v${version}`);
  const data=fs.mkdtempSync(path.join(os.tmpdir(),'大肥鱼 portable '));
  const port=await freePort();
  fs.renameSync(original,relocated);
@@ -21,7 +21,7 @@ async function freePort(){const s=net.createServer();await new Promise(r=>s.list
  if(process.env.CODEX_PET_TEST_LIVE!=='1') {env.CODEX_PET_CODEX_PATH=path.join(data,'未安装 Codex.exe');env.CODEX_HOME=path.join(data,'empty-codex');}
  let application,petBrowser,mainPid;
  try {
-  application=await electron.launch({executablePath:path.join(relocated,'CodexPet.exe'),env,timeout:30000});
+  application=await electron.launch({executablePath:path.join(relocated,'Codex-dafeiyu.exe'),env,timeout:30000});
   mainPid=await application.evaluate(()=>process.pid);
   const page=await application.firstWindow();
   await page.waitForSelector('#chat-sessions option',{state:'attached',timeout:30000});
@@ -59,7 +59,7 @@ async function freePort(){const s=net.createServer();await new Promise(r=>s.list
   await page.click('#chat-expand');
   await page.selectOption('#chat-sessions',old);
   console.log('PASS hide/show, local quote, new/switch/reload history, model mode, memory toggle, '+(process.env.CODEX_PET_TEST_LIVE==='1'?'live account reply':'missing-Codex chat error without retry'));
-  const second=spawn(path.join(relocated,'CodexPet.exe'),[],{env,windowsHide:true,stdio:'ignore'});
+  const second=spawn(path.join(relocated,'Codex-dafeiyu.exe'),[],{env,windowsHide:true,stdio:'ignore'});
   await new Promise(r=>second.once('exit',r));
   assert.equal(await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed()).length),1);
   await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].close());
@@ -74,6 +74,7 @@ async function freePort(){const s=net.createServer();await new Promise(r=>s.list
     await pet.waitForFunction(()=>sprites[0].anim==='点击回应-收到敬礼');
     console.log('PASS live quota, reset response/error handling and open-Codex salute');
   }
+  if (process.env.CODEX_PET_TEST_SKIP_FULLSCREEN !== '1') {
   const compiler=path.join(process.env.WINDIR,'Microsoft.NET','Framework64','v4.0.30319','csc.exe');
   const probeExe=path.join(data,'FullscreenProbe.exe'),probeResult=path.join(data,'fullscreen-result.txt');
   execFileSync(compiler,['/nologo','/target:winexe','/reference:System.Windows.Forms.dll','/reference:System.Drawing.dll','/out:'+probeExe,path.join(__dirname,'FullscreenProbe.cs')],{windowsHide:true});
@@ -84,6 +85,7 @@ async function freePort(){const s=net.createServer();await new Promise(r=>s.list
   assert.equal(fs.readFileSync(probeResult,'utf8'),'PASS');
   await until(()=>JSON.parse(fs.readFileSync(path.join(data,'visibility-state.json'))).visible===true);
   console.log('PASS real fullscreen window retains focus; pet hides and restores');
+  } else console.log('SKIP fullscreen focus check (explicitly disabled)');
   if(process.env.CODEX_PET_TEST_LIVE!=='1') {
    fs.mkdirSync(path.join(root,'docs'),{recursive:true});
    await page.screenshot({path:path.join(root,'docs','portable-preview.png')});
