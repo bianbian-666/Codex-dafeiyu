@@ -506,9 +506,9 @@ export function apply(ctx: any): void {
   const publishWhisper = async (petId: string, animation?: string): Promise<boolean> => {
     if (ctx.agentDefaultModel.currentSelection().provider === 'codex') {
       const actionQuotes: Record<string, string> = {
-        '碎碎念-擦桌碎碎念': '桌子擦亮啦！本鱼的工资能用小鱼干结吗？',
+        '碎碎念-擦桌碎碎念': '桌子擦亮啦！工资用白饭结，加班费用 token 结！',
         '碎碎念-对屏碎碎念': '本鱼盯着呢，写完这段就歇会儿～',
-        '碎碎念-发呆碎碎念': '本鱼没发呆，只是在想晚饭吃几个团子。',
+        '碎碎念-发呆碎碎念': '本鱼没发呆，只是在想今晚的白饭要盛多满。',
       };
       state.writePet(petId, 'say', { text: actionQuotes[animation ?? ''] ?? pickLocalQuote(join(dshHomeDir(), 'quotes.json')), ...(actionQuotes[animation ?? ''] ? { animation } : {}) });
       return true;

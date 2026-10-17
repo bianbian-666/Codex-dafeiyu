@@ -1,5 +1,5 @@
 (() => {
- const get=id=>document.getElementById(id);let expanded=false,sending=false,last='',serverBusy=false,pollError='';
+ const get=id=>document.getElementById(id);let expanded=false,sending=false,last='',serverBusy=false,pollError='',pollTimer,polling=false;
  const api=(action,body)=>window.pet.action(action,body);
  function render(s){
   if(!s.ok)throw new Error(s.message||'聊天记录暂不可用');
@@ -33,7 +33,8 @@
  get('chat-form').onsubmit=async event=>{
   event.preventDefault();const text=get('chat-input').value.trim();if(!text||sending||serverBusy)return;
   sending=true;get('chat-send').disabled=true;get('chat-result').textContent='收到！本鱼来啦…';expand(true);
-  try{const r=await command({action:'send',text});get('chat-input').value='';get('chat-result').textContent=`${r.model} · low`;}catch(e){get('chat-result').textContent=e.message;}finally{sending=false;await refresh().catch(()=>{});}
+  try{const response=command({action:'send',text});schedulePoll(100);const r=await response;get('chat-input').value='';get('chat-result').textContent=`${r.model} · low`;}catch(e){get('chat-result').textContent=e.message;}finally{sending=false;await refresh().catch(()=>{});}
  };
- async function poll(){try{await refresh();}catch(e){if(!sending){pollError=e.message;get('chat-result').textContent=pollError;}}setTimeout(poll,sending||serverBusy?350:2000);}poll();
+ function schedulePoll(ms){clearTimeout(pollTimer);pollTimer=setTimeout(poll,ms);}
+ async function poll(){if(polling){schedulePoll(100);return;}polling=true;try{await refresh();}catch(e){if(!sending){pollError=e.message;get('chat-result').textContent=pollError;}}finally{polling=false;schedulePoll(sending||serverBusy?150:2000);}}poll();
 })();
