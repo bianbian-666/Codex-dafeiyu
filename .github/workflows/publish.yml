@@ -31,10 +31,14 @@ jobs:
           git config core.autocrlf false
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm -- .github/workflows/publish.yml
+          git checkout-index --force -- .github/workflows/publish.yml
           Get-ChildItem -LiteralPath $unpacked -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $env:GITHUB_WORKSPACE -Recurse -Force }
           git add --all
+          $env:GIT_INDEX_FILE = Join-Path $env:RUNNER_TEMP 'source-verify.index'
+          git read-tree --empty
+          git add --all -- . ':(exclude).github/workflows/publish.yml'
           $tree = (git write-tree).Trim()
+          Remove-Item Env:\GIT_INDEX_FILE
           if ($tree -ne 'd1d32ef44607fe2cd5ad818443dcbd29f676e7ec') { throw 'Imported files differ from the tested source tree' }
           git commit -m 'Release v1.3.2: verified Codex Dafeiyu source, compatibility fixes and upstream credits'
           if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
