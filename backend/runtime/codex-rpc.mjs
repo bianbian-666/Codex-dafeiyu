@@ -1,6 +1,8 @@
 import {spawn,execFileSync} from 'node:child_process';
 import readline from 'node:readline';
+import {readFileSync} from 'node:fs';
 import {resolveCodexExecutable} from './codex-usage/usage.mjs';
+const appVersion=JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8')).version;
 export async function connect() {
   const cli=resolveCodexExecutable(process.env.CODEX_PET_CODEX_PATH || process.env.DSH_PET_CODEX_PATH);
   if(!cli) throw new Error('本鱼找不到 Codex，请先安装并登录。');
@@ -19,7 +21,8 @@ export async function connect() {
   let sequence=0; const pending=new Map(),listeners=new Set();
   child.stderr.resume();
   const send=obj=>child.stdin.write(JSON.stringify(obj)+'\n');
-  const fail=()=>{for(const p of pending.values())p.reject(new Error('Codex 连接已结束'));pending.clear();};
+  let ended=false;
+  const fail=()=>{if(ended)return;ended=true;for(const p of pending.values())p.reject(new Error('Codex 连接已结束'));pending.clear();for(const fn of listeners)fn({method:'pet/connectionClosed'});};
   child.on('error',fail);child.on('exit',fail);child.stdin.on('error',fail);
   readline.createInterface({input:child.stdout}).on('line',line=>{
     let msg;try{msg=JSON.parse(line)}catch{return}
@@ -27,10 +30,10 @@ export async function connect() {
     if(msg.id!=null){const p=pending.get(msg.id);if(p){pending.delete(msg.id);msg.error?p.reject(new Error(msg.error.message)):p.resolve(msg.result)}}
     else {if(process.env.CODEX_PET_RPC_DEBUG) console.error('RPC',msg.method,JSON.stringify({threadId:msg.params?.threadId,keys:Object.keys(msg.params??{}),status:msg.params?.turn?.status,itemType:msg.params?.item?.type,error:msg.params?.error}));for(const fn of listeners)fn(msg);}
   });
-  const rpc=(method,params={})=>new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Codex 响应超时'))},20000);pending.set(id,{resolve:v=>{clearTimeout(timer);resolve(v)},reject:e=>{clearTimeout(timer);reject(e)}});send({id,method,params});});
+  const rpc=(method,params={})=>new Promise((resolve,reject)=>{if(ended){reject(new Error('Codex 连接已结束'));return;}const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Codex 响应超时'))},20000);pending.set(id,{resolve:v=>{clearTimeout(timer);resolve(v)},reject:e=>{clearTimeout(timer);reject(e)}});send({id,method,params});});
   const close=()=>{child.stdin.end();child.kill();fail()};
-  try{await rpc('initialize',{clientInfo:{name:'dafeiyu_pet',version:'1.0.0'},capabilities:{experimentalApi:true}});send({method:'initialized'});}catch(e){close();throw e}
+  try{await rpc('initialize',{clientInfo:{name:'dafeiyu_pet',title:'Codex-dafeiyu',version:appVersion},capabilities:{experimentalApi:true}});send({method:'initialized'});}catch(e){close();throw e}
   const stop=()=>child.kill();process.once('exit',stop);
   child.once('exit',()=>process.removeListener('exit',stop));
-  return {rpc,close,listeners,alive:()=>child.exitCode===null&&!child.killed};
+  return {rpc,close,listeners,alive:()=>!ended&&child.exitCode===null&&!child.killed};
 }

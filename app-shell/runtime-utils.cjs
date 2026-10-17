@@ -30,6 +30,26 @@ function prepareData(root, data) {
       fs.copyFileSync(path.join(root, 'defaults', relative), target);
     }
   }
+  upgradeQuotes(root, data);
+}
+
+function upgradeQuotes(root, data) {
+  const manifest=path.join(root,'defaults','quotes-upgrade.json');
+  if(!fs.existsSync(manifest))return;
+  const upgrade=JSON.parse(fs.readFileSync(manifest,'utf8'));
+  const marker=path.join(data,'quotes-upgrade-state.json'),file=path.join(data,'quotes.json');
+  try { if(JSON.parse(fs.readFileSync(marker,'utf8')).revision===upgrade.revision)return; } catch {}
+  let raw,quotes;
+  try { raw=fs.readFileSync(file,'utf8');quotes=JSON.parse(raw.replace(/^\uFEFF/,'')); } catch { return; }
+  if(!Array.isArray(quotes)||!quotes.every(q=>typeof q==='string'))return;
+  if(quotes.some(q=>Object.hasOwn(upgrade.replacements,q))){
+    const next=quotes.map(q=>Object.hasOwn(upgrade.replacements,q)?upgrade.replacements[q]:q);
+    for(const quote of upgrade.additions)if(!next.includes(quote))next.push(quote);
+    const backup=path.join(data,`quotes.before-${upgrade.revision}.json`);
+    if(!fs.existsSync(backup))fs.writeFileSync(backup,raw,{flag:'wx'});
+    fs.writeFileSync(file+'.tmp',JSON.stringify(next,null,2)+'\n');fs.renameSync(file+'.tmp',file);
+  }
+  fs.writeFileSync(marker+'.tmp',JSON.stringify({revision:upgrade.revision})+'\n');fs.renameSync(marker+'.tmp',marker);
 }
 
 function checkPackage(root) {
