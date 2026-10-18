@@ -127,7 +127,7 @@ export interface AccountBalanceSnapshot {
 
 /** 成功结果（client 端与 host 端同构使用）：`shape` 是展示形态，`provider` 是当前到底是谁 */
 export type BalanceSuccess =
-  | { ok: true; provider: string; shape: 'quota'; data: { planLabel: string; windows: { label: string; used: number; remaining: number; resetsAt: number | null }[] } }
+  | { ok: true; provider: string; shape: 'quota'; stale?: boolean; observedAt?: number; data: { planLabel: string; windows: { label: string; used: number; remaining: number; resetsAt: number | null }[] } }
   | { ok: true; provider: string; shape: 'windows'; data: WindowsUsage }
   | { ok: true; provider: string; shape: 'money'; data: MoneyBalance };
 

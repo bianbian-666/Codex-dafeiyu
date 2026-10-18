@@ -30,3 +30,8 @@ test('invalid or missing windows never become zero usage', () => {
   assert.ok(failed && !failed.ok);
   assert.ok(balanceBubbleView(failed).some(r => r.text === '查询超时'));
 });
+test('cached quota keeps all amounts and appends the non-realtime marker at the bottom', () => {
+  const state=toBalanceState({...raw([{label:'5小时',used:20,remaining:80,resetsAt:null}]),stale:true,observedAt:123});
+  assert.ok(state?.ok);
+  assert.deepEqual(balanceBubbleView(state).at(-1),{role:'stale',text:'（非实时）'});
+});

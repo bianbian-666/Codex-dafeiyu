@@ -344,6 +344,44 @@ let pointerFallbackPaused = false;
 const inputBusy = new Map();
 /** 新渲染端把菜单/聊天框局部矩形单独上报，避免忙碌态下整窗透明余量吞点击。 */
 const inputRegions = new Map();
+const {resetWindowInput,transitionWindow}=require('./visibility-recovery');
+const recoveryTimes=new Map();
+let gameWindow=null,gameInfo=null,gameOwner=null;
+function stopGame(position) {
+  const target=gameWindow;if(!target)return;
+  const oldOwner=gameOwner;
+  const finalPosition={...gameInfo};
+  if(position && [position.x,position.y].every(Number.isFinite)) {
+    finalPosition.x=gameInfo.area.x+position.x;finalPosition.y=gameInfo.area.y+position.y;
+    if(position.facing===1||position.facing===-1)finalPosition.facing=position.facing===1?'right':'left';
+  }
+  gameWindow=null;
+  gameOwner=null;
+  // Create the replacement first: no zero-window gap and no reused native
+  // capture, pointer hook, renderer flags or pending animation callbacks.
+  if(oldOwner && !oldOwner.isDestroyed()) {
+    createPetWindows({petId:finalPosition.petId,position:finalPosition});
+    oldOwner.destroy();
+  }
+  if(!target.isDestroyed())target.destroy();
+  console.log('[pet-control] fresh pet window restored');
+}
+function resetInput(win) {
+  resetWindowInput(win,[inputBusy,inputRegions,offBodyMs,lastRequestedBounds],setWindowIgnore);
+}
+function recoverHealth(win) {
+  const checkedAt=Date.now();
+  const timer=setTimeout(()=>failed(),6000);
+  const failed=()=>{
+    clearTimeout(timer);
+    if(win.isDestroyed() || !win.isVisible() || checkedAt<= (recoveryTimes.get(win.id)||0))return;
+    recoveryTimes.set(win.id,Date.now()+60000);
+    console.warn('[pet-recovery] renderer probe failed; one reload');
+    resetInput(win);win.webContents.reload();
+  };
+  win.webContents.executeJavaScript('Boolean(window.__dshPetDebug && typeof pollStateNow === "function")')
+    .then(ok=>{clearTimeout(timer);if(!ok)failed();}).catch(failed);
+}
 
 /** 每窗口「光标停在余量区且非 busy」的连续时长（ms）：到点由兜底通道强制恢复穿透 */
 const offBodyMs = new Map();
@@ -391,13 +429,16 @@ function deskGeometry() {
   return buildDeskGeometry(screen.getAllDisplays(), screen.getPrimaryDisplay().id, process.platform);
 }
 
-function createPetWindows() {
+function createPetWindows(replacement) {
   const geo = deskGeometry();
   const area = geo.hull;
   const configUrl = process.env.DSH_PET_CONFIG_URL || 'http://127.0.0.1:3080/dsh-pet-7340/config';
   const pets = petsFromEnv();
   const scale = petScale();
   for (const pet of pets) {
+    if(replacement && pet.id!==replacement.petId)continue;
+    if(!replacement && windows.has(pet.id) && !windows.get(pet.id).isDestroyed())continue;
+    const restored=replacement?.position;
     // 初始窗口尺寸也要吃缩放补偿，否则启动瞬间会有一次可见的尺寸跳变
     const { width, height } = petWindowSize(pet.size * scale);
     const win = new BrowserWindow({
@@ -424,7 +465,8 @@ function createPetWindows() {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
-        paintWhenInitiallyHidden: false,
+        paintWhenInitiallyHidden: true,
+        backgroundThrottling: false,
         spellcheck: false,
       },
     });
@@ -434,6 +476,13 @@ function createPetWindows() {
     // 导致大宠物移动盖过小宠物时小宠物显示为"消失"。关闭后台节流，让被遮挡
     // 窗口持续渲染，移开遮挡后立刻恢复显示。
     win.webContents.setBackgroundThrottling(false);
+    win.webContents.on('render-process-gone', (_event, details) => {
+      console.warn('[pet-recovery] renderer exited: '+details.reason);
+      if (win.isVisible() && Date.now()>(recoveryTimes.get(win.id)||0)) {
+        recoveryTimes.set(win.id,Date.now()+60000);
+        setTimeout(()=>{if(!win.isDestroyed()){resetInput(win);win.webContents.reload();}},1000);
+      }
+    });
     // 屏蔽 Electron 默认右键菜单：右键菜单由渲染端统一自绘组件弹出（两端一致），绝无双菜单
     win.webContents.on('context-menu', (event) => event.preventDefault());
     // 页面级缩放 = petScale()（渲染端 CONFIG.scale 的同一来源）：整窗内容统一放大，渲染端坐标系
@@ -500,7 +549,7 @@ function createPetWindows() {
     win.on('closed', () => {
       clearInterval(pointerTimer);
       clearInterval(topmostTimer);
-      windows.delete(pet.id);
+      if(windows.get(pet.id)===win)windows.delete(pet.id);
       lastRequestedBounds.delete(win.id);
       windowIgnore.delete(win.id);
       inputBusy.delete(win.id);
@@ -516,6 +565,9 @@ function createPetWindows() {
           openTarget: OPEN_TARGET,
           scale: String(scale),
           petIndex: String(pet.index),
+          restoreX: restored?String(restored.x):'',
+          restoreY: restored?String(restored.y):'',
+          restoreFacing: restored?.facing||'',
           workAreaW: String(area.width),
           workAreaH: String(area.height),
           workAreaX: String(area.x),
@@ -555,15 +607,18 @@ let bridgeCallbackUrl = '';
 function bridgeRequest(method, url, body) {
   return new Promise((resolve, reject) => {
     const id = ++bridgeSeq;
-    bridgePending.set(id, { resolve, reject });
+    const entry = { resolve, reject, timer: null };
+    bridgePending.set(id, entry);
     process.stdout.write(BRIDGE_PREFIX + JSON.stringify({ id, method, url, body, cb: bridgeCallbackUrl }) + '\n');
     // 宿主若长期不应答（进程退出/宿主动作挂起）不无限挂起：45s 兜底（LLM 生成最长 30-60s）
-    setTimeout(() => {
+    entry.timer=setTimeout(() => {
       const p = bridgePending.get(id);
       if (!p) return;
       bridgePending.delete(id);
+      console.warn('[pet-bridge] timeout '+method+' '+url.split('?')[0]);
       p.reject(new Error('bridge request timeout'));
-    }, method === 'POST' && /\/(?:chat|pet-chat)(?:\?|$)/.test(url) ? 115000 : 45000).unref?.();
+    }, method === 'GET' ? 8000 : /\/(?:chat|pet-chat)(?:\?|$)/.test(url) ? 115000 : 45000);
+    entry.timer.unref?.();
   });
 }
 
@@ -572,6 +627,7 @@ function bridgeResolve(resp) {
   const p = resp && bridgePending.get(resp.id);
   if (!p) return;
   bridgePending.delete(resp.id);
+  clearTimeout(p.timer);
   p.resolve(resp);
 }
 
@@ -652,9 +708,14 @@ app.whenReady().then(() => {
         const visible = !fullscreen && JSON.parse(readFileSync(process.env.CODEX_PET_CONTROL, 'utf8')).visible !== false;
         for (const win of windows.values()) {
           if (win.isDestroyed()) continue;
-          if (!visible && win.isVisible()) win.hide();
-          else if (visible && !win.isVisible()) win.showInactive();
+          if (transitionWindow(win, visible && !gameWindow, {
+            reset: resetInput,
+            notify: (target,phase)=>target.webContents.send('pet:lifecycle',phase),
+            geometry: target=>target.webContents.send('pet:displays',deskGeometry()),
+            health: recoverHealth,
+          })) console.log('[pet-recovery] visibility '+(visible?'resume':'suspend'));
         }
+        if (!visible && gameWindow) stopGame();
         if (process.env.CODEX_PET_TEST_CDP) writeFileSync(path.join(path.dirname(process.env.CODEX_PET_CONTROL), 'visibility-state.json'), JSON.stringify({visible:[...windows.values()].some(w=>!w.isDestroyed()&&w.isVisible())}));
       } catch {}
     };
@@ -728,6 +789,35 @@ app.whenReady().then(() => {
       });
     }
   });
+  ipcMain.on('pet:start-control',(event,info)=>{
+    const owner=BrowserWindow.fromWebContents(event.sender);
+    if(gameWindow || !owner || !owner.isVisible() || !info || ![info.x,info.y,info.size].every(Number.isFinite) || info.size<100 || info.size>1800)return;
+    if(typeof info.assetBase!=='string' || !info.assetBase.startsWith('dsh-pet-bridge://dsh-pet/dsh-pet-7340/thumb/'))return;
+    const display=screen.getDisplayNearestPoint({x:Math.round(info.x+info.size/2),y:Math.round(info.y+info.size/3)});
+    const area=display.workArea;
+    gameInfo={...info,area};gameOwner=owner;
+    const game=new BrowserWindow({x:area.x,y:area.y,width:area.width,height:area.height,frame:false,transparent:true,show:false,alwaysOnTop:true,skipTaskbar:true,resizable:false,hasShadow:false,focusable:true,
+      webPreferences:{preload:path.join(__dirname,'game-preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+    gameWindow=game;
+    game.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+    game.webContents.on('will-navigate',e=>e.preventDefault());
+    game.webContents.on('render-process-gone',()=>stopGame());
+    game.once('ready-to-show',()=>{
+      if(gameWindow!==game)return;
+      for(const win of windows.values())transitionWindow(win,false,{reset:resetInput,notify:(w,phase)=>w.webContents.send('pet:lifecycle',phase)});
+      game.show();game.focus();
+      game.on('blur',()=>{if(gameWindow===game)stopGame();});
+    });
+    game.on('closed',()=>{if(gameWindow===game)stopGame();});
+    game.loadFile(path.join(__dirname,'game.html')).catch(()=>stopGame());
+  });
+  ipcMain.handle('pet:game-init',event=>event.sender===gameWindow?.webContents?gameInfo:null);
+  ipcMain.on('pet:game-position',(event,position)=>{
+    if(event.sender!==gameWindow?.webContents || !position || ![position.x,position.y].every(Number.isFinite))return;
+    gameInfo.x=gameInfo.area.x+position.x;gameInfo.y=gameInfo.area.y+position.y;
+    if(position.facing===1||position.facing===-1)gameInfo.facing=position.facing===1?'right':'left';
+  });
+  ipcMain.on('pet:game-exit',(event,position)=>{if(event.sender===gameWindow?.webContents)stopGame(position);});
 
   // 飞行状态上报（碰撞站场）：renderer 飞行中每 ~30ms 上报一次自己的位置/速度/尺寸
   ipcMain.on('pet:report-flight', (event, state) => {

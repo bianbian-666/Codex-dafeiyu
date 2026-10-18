@@ -302,6 +302,8 @@ export function apply(ctx: any): void {
   // 轮询统一状态（S）：前端 1s 轮询的**唯一**数据源（余额 / 工作状态 / 通知 / 宠物说话）。
   // 所有写入走 state.writeSection / writePet（由它统一更新 counter），见 ./state 的说明。
   const state = new PollStateStore();
+  let controlRequest = 0;
+  let reminders: Promise<{ snapshot(): unknown; command(body: unknown): unknown }> | undefined;
   // 工作状态联动快照（/work-status 端点响应，浏览器 1s 轮询）：state=当前活动状态（null=空闲）、
   // task=当前任务详情、ts=最近变化时间（轮询侧检测变化用）。气泡文案不在此：浏览器读配置
   // events.workStatusTexts（host 不内置文案）。
@@ -884,6 +886,35 @@ export function apply(ctx: any): void {
   const handlePetRoute = async (rawUrl: string, method: string, body?: string): Promise<RouteResult> => {
     const url = new URL(rawUrl, 'http://localhost');
     const rest = decodeURIComponent(url.pathname.slice(ROUTE_PREFIX.length + 1));
+    if (rest === 'manager') {
+      if(method !== 'POST') return {kind:'json',status:405,obj:{ok:false}};
+      await writeFile(join(dshHomeDir(),'manager-request.json'),JSON.stringify({id:Date.now(),view:'reminders'}),'utf8');
+      return {kind:'json',status:200,obj:{ok:true}};
+    }
+    if (rest === 'reminders' || rest === 'control') {
+      try {
+        if (rest === 'control') {
+          if (method !== 'POST') return { kind:'json',status:405,obj:{error:'method not allowed'} };
+          const payload=JSON.parse(body || '{}');
+          if(payload.action==='consume') {
+            const accepted=controlRequest>0 && payload.id===controlRequest;
+            if(accepted)controlRequest=0;
+            return {kind:'json',status:200,obj:{ok:true,accepted}};
+          }
+          controlRequest=Date.now();
+          return {kind:'json',status:200,obj:{ok:true}};
+        }
+        if (!reminders) {
+          reminders = import(new URL('../runtime/reminders.mjs', import.meta.url).href)
+            .then(runtime=>runtime.reminderService(dshHomeDir()))
+            .catch(error=>{reminders=undefined;throw error;});
+        }
+        if (method !== 'GET' && method !== 'POST') return {kind:'json',status:405,obj:{error:'method not allowed'}};
+        const service = await reminders!;
+        const result = method === 'GET' ? service.snapshot() : service.command(JSON.parse(body || '{}'));
+        return {kind:'json',status:200,obj:{...result as object,controlRequest},headers:{'cache-control':'no-store'}};
+      } catch (e) { return {kind:'json',status:400,obj:{ok:false,message:e instanceof Error?e.message:String(e)}}; }
+    }
 
     // 成品配置：/dsh-pet-7340/config（GET 读取合并成品 / PUT 保存用户层 / POST 同步内置默认）
     if (rest === 'config') {

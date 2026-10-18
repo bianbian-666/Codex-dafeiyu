@@ -15,6 +15,7 @@ function renderQuota(balance) {
     reset.textContent=w.resetsAt ? new Date(w.resetsAt*1000).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+' 重置' : '重置时间未知';
     row.append(line,bar,reset); box.append(row);
   }
+  if (balance.stale) { const note=document.createElement('em'); note.className='quota-stale'; note.textContent='（非实时）'; if(balance.observedAt)note.title='上次成功查询：'+new Date(balance.observedAt).toLocaleString(); box.append(note); }
 }
 async function refresh() {
   try {
@@ -22,6 +23,7 @@ async function refresh() {
     el('activity').textContent=state.ready ? state.work?.task || '暂时没有任务，在这里陪你～' : state.message;
     el('visibility').textContent=state.visible?'隐藏桌宠':'显示桌宠';
     if(state.ready) renderQuota(state.balance);
+    return state;
   } catch { el('activity').textContent='暂时无法连接桌宠'; }
 }
 document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',async()=>{
@@ -33,7 +35,8 @@ document.querySelectorAll('[data-action]').forEach(button=>button.addEventListen
     if(action==='reset') el('reset-result').textContent=result.text;
     if(result?.ok===false) throw new Error(result.message || result.text || '操作未成功，请稍后重试');
     el('notice').textContent=action==='settings'?'修改配置后，请退出软件并重新打开。':action==='quotes'?'保存语录文件后，下次说话即生效。':action==='quota'?'已刷新额度':action==='quote'?'听听她说什么～':'';
-    await refresh();
+    const latest=await refresh();
+    if(action==='quota')el('notice').textContent=latest?.balance?.stale?'查询暂未成功，显示上次成功的额度':latest?.balance?.ok?'已刷新额度':'本次查询未成功';
   } catch (error) { el('notice').textContent=error.message || '操作暂未成功，请稍后重试。'; }
   finally { button.disabled=false; }
 }));

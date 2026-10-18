@@ -87,6 +87,11 @@ class PetSprite {
     this.moveToken = 0;
     this.pendingMove = null;
     this.customPos = null; // 拖拽后的会话内位置（{rx, ry} 比例）；restart 回角落
+    if(params.get('restoreX') && params.get('restoreY')) {
+      const x=toLocal(Number(params.get('restoreX')))-VIEW.x,y=toLocal(Number(params.get('restoreY')))-VIEW.y;
+      if(Number.isFinite(x)&&Number.isFinite(y))this.customPos={rx:(x+this.halfW)/VIEW.w,ry:(y+this.halfH)/VIEW.h};
+      if(params.get('restoreFacing')==='right')this.facing='right';
+    }
     // 右键菜单（统一自绘组件，两端共用同一份：树+渲染均来自 shared-core）
     this.menuOpen = false; // 菜单开启期间强制整窗可交互（悬停菜单不触发穿透翻转）
     this.menuClose = null; // 当前菜单的 close()（打开时挂载，关闭后置空）
@@ -840,6 +845,7 @@ class PetSprite {
     // 不主动收就会让提示跟着宠物一路飘（松开后由 onPointerUp 按指针位置复位）
     this.setTip(false);
     this.stopMove();
+    this.activePointerId = e.pointerId;
     try {
       this.hit.setPointerCapture(e.pointerId);
     } catch {
@@ -980,7 +986,7 @@ class PetSprite {
    * 位移分不清"拖拽跟手"和"漫游/抛掷"）。同时上报控件矩形：菜单/聊天框外的透明区域继续穿透。
    */
   inputBusy() {
-    return this.dragState.active || this.menuOpen || this.chatOpen;
+    return this.dragState.active || this.menuOpen || this.chatOpen || !!this.stickyOn;
   }
 
   /**
@@ -1000,7 +1006,7 @@ class PetSprite {
   syncInputRegions() {
     if (!window.petBridge || !window.petBridge.setInputRegions) return;
     const rects = [];
-    const controls = [...document.querySelectorAll('.dsh-pet-menu-column, .dsh-pet-chat')];
+    const controls = [...document.querySelectorAll('.dsh-pet-menu-column, .dsh-pet-chat, .pet-sticky:not([hidden])')];
     for (const el of this.inputRegionElements) {
       if (!controls.includes(el)) {
         this.inputRegionResize.unobserve(el);
@@ -1097,7 +1103,7 @@ class PetSprite {
       return;
     }
     // 右键菜单/对话弹窗开启：整窗保持可交互（悬停菜单项/点输入框都不触发穿透翻转）；关闭后恢复命中区判定
-    if (this.menuOpen || this.chatOpen) {
+    if (this.menuOpen || this.chatOpen || this.stickyOn) {
       this.syncInputRegions(); // 级联菜单按悬停增减面板，及时更新其真实占用区域
       this.setInteractive(true);
       this.setTip(false); // 菜单/弹窗期间提示让位：光标已不在身体上，也不该跟浮层抢注意力
@@ -1182,6 +1188,8 @@ class PetSprite {
     tools.push(
       { label: '碎碎念（来一句）', action: 'whisper' },
       { label: '和本鱼对话', action: 'chat' },
+      { label: 'DDL 提醒 · 便签', action: 'reminders' },
+      { label: '控制大肥鱼 · WASD / 扔白饭', action: 'control' },
       { label: '查询 Codex 重置', action: 'reset' },
       { label: '打开 Codex', action: 'open-codex' },
       { label: '回到初始位置', action: 'home' },
@@ -1221,6 +1229,8 @@ class PetSprite {
 
   onMenuAction(leaf) {
     this.closeMenu();
+    if (leaf.action === 'control') { window.startPetControl?.(this); return; }
+    if (leaf.action === 'reminders') { window.showPetReminders?.(this); return; }
     if (!leaf || typeof leaf !== 'object') return;
     if (leaf.action === 'open-codex') { S.postAction(BASE + '/ack').then(()=>pollStateNow()).catch(()=>{}); window.petBridge?.openCodex(); return; }
     if (leaf.action === 'reset') { S.postAction(BASE + '/reset').then(() => pollStateNow()); return; }
@@ -1285,11 +1295,12 @@ class PetSprite {
     if (!this.pet.balanceEnabled) return;
     S.postAction(BALANCE_URL)
       .then((ok) => {
-        if (!ok) console.warn('[dsh-pet] 菜单查看余额：刷新动作未成功');
+        if (!ok) this.showWhisper('暂时连不上后台，过一会儿再试试吧。');
         pollStateNow(); // 立即拉一拍：结果 0 延迟可见（失败也会由 /state 里的 ok:false 弹文字说明）
       })
       .catch((e) => {
         console.error('[dsh-pet] 菜单查看余额异常', e);
+        this.showWhisper('查询暂未完成，稍后再试试吧。');
       });
   }
 
@@ -1443,6 +1454,7 @@ class PetSprite {
         for (const r of rows) {
           const div = document.createElement('div');
           if (r.role === 'error') div.className = 'pet-bub-err';
+          else if (r.role === 'stale') div.className = 'pet-bub-row pet-bub-sub pet-bub-stale';
           else if (r.role === 'sub') div.className = 'pet-bub-row pet-bub-sub';
           else div.className = 'pet-bub-row';
           div.textContent = r.text;

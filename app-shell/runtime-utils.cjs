@@ -55,7 +55,14 @@ function upgradeQuotes(root, data) {
 function checkPackage(root) {
   const required = ['node.exe','backend-entry.mjs','DesktopBridge.exe','backend/lib/standalone.js',
     'backend/assets/config.jsonc','backend/runtime/electron-helper/main.js','assets/icon.ico',
-    'defaults/quotes.json','defaults/dsh-pet/main-config.jsonc'];
+    'defaults/quotes.json','defaults/dsh-pet/main-config.jsonc',
+    'reminders-panel.js','backend/runtime/reminders.mjs','backend/runtime/quota-cache.mjs',
+    'backend/runtime/electron-helper/visibility-recovery.js','backend/runtime/electron-helper/features.js',
+    'backend/runtime/electron-helper/game.html','backend/runtime/electron-helper/game.js',
+    'backend/runtime/electron-helper/game-preload.js','backend/runtime/electron-helper/game-physics.js',
+    'backend/assets/pic/rice-bowl.png','backend/assets/webm/白饭落地.webm',
+    'backend/assets/webm/控制-奔跑.webm','backend/assets/webm/控制-摔倒.webm',
+    'backend/assets/webm/控制-奔跑摔倒.webm'];
   const missing = required.filter(file => !fs.existsSync(path.join(root, file)));
   if (missing.length) throw new Error('程序文件不完整，请完整解压发布包后重试。缺少：' + missing.join('、'));
 }

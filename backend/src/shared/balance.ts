@@ -43,6 +43,8 @@ export type PricingTier = 'peak' | 'idle';
 
 /** 已解析的余额视图（展示 + 档位计算用） */
 export interface BalanceView {
+  stale?: boolean;
+  observedAt?: number;
   provider: string;
   shape: 'windows' | 'money' | 'quota';
   planLabel?: string;
@@ -129,7 +131,8 @@ export function toBalanceState(raw: unknown): BalanceState | null {
       if (!w || typeof w.label !== 'string' || typeof w.used !== 'number' || !Number.isFinite(w.used) || w.used < 0 || w.used > 100 || typeof w.remaining !== 'number' || !Number.isFinite(w.remaining) || w.remaining < 0 || w.remaining > 100) return null;
       windows.push({ label: w.label, used: w.used, remaining: w.remaining, resetsAt: typeof w.resetsAt === 'number' && Number.isFinite(w.resetsAt) && w.resetsAt > 0 && w.resetsAt <= 253402271999 ? w.resetsAt : null });
     }
-    return { ok: true, provider, shape: 'quota', planLabel: typeof d.planLabel === 'string' ? d.planLabel : '', windows };
+    const meta = raw as { stale?: unknown; observedAt?: unknown };
+    return { ok: true, provider, shape: 'quota', planLabel: typeof d.planLabel === 'string' ? d.planLabel : '', windows, stale: meta.stale === true, observedAt: typeof meta.observedAt === 'number' ? meta.observedAt : undefined };
   }
   if (r.shape === 'windows') {
     const monthly = optNum(d.monthly);
@@ -319,6 +322,7 @@ export function resetInText(iso?: string): string {
 
 /** 气泡行数据：role 决定两端的样式类（浏览器 React span；桌面 DOM div）；tier 用于峰谷着色 */
 export type BalanceBubbleRow =
+  | { role: 'stale'; text: string }
   | { role: 'label'; text: string }
   | { role: 'sub'; text: string }
   | { role: 'error'; text: string }
@@ -366,6 +370,7 @@ export function balanceBubbleView(state: BalanceState): BalanceBubbleRow[] {
         const reset = w.resetsAt ? resetInText(new Date(w.resetsAt * 1000).toISOString()) : '';
         rows.push({ role: 'sub', text: reset === '已重置' ? '重置时间已到，请刷新' : reset ? reset + '后重置' : '重置时间未知' });
       }
+      if (state.stale) rows.push({ role: 'stale', text: '（非实时）' });
       return rows;
     }
     if (state.shape !== 'money') {
