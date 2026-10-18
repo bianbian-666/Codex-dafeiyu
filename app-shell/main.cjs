@@ -1,7 +1,7 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const { prepareData, checkPackage, readBackendAddress, backendEnvironment } = require('./runtime-utils.cjs');
 app.setAppUserModelId('local.codexpet.bluemaid');
@@ -68,7 +68,28 @@ if (process.env.CODEX_PET_HELPER === '1') {
     }
     function showPanel() {
       if (!panel || panel.isDestroyed()) createPanel();
-      panel.show(); if (panel.isMinimized()) panel.restore(); panel.focus();
+      if (panel.isMinimized()) panel.restore();
+      panel.setAlwaysOnTop(true, 'screen-saver');
+      panel.show(); panel.moveTop(); panel.focus();
+    }
+    function showReminders() {
+      showPanel();
+      const target=panel;
+      const activate=()=>{
+        if(target.isDestroyed())return;
+        target.setAlwaysOnTop(true, 'screen-saver');target.moveTop();
+        target.focus();target.webContents.focus();
+        target.webContents.executeJavaScript('document.getElementById("reminder-card")?.scrollIntoView({block:"start"});document.getElementById("reminder-text")?.focus({preventScroll:true})').catch(()=>{});
+      };
+      const ready=()=>{
+        if(target.isDestroyed())return;
+        // Only an explicit reminder click activates the manager across the pet/manager processes.
+        if(process.platform==='win32') {
+          const handle=target.getNativeWindowHandle().readBigUInt64LE().toString();
+          execFile(path.join(root,'DesktopBridge.exe'),['--focus-window',handle],{windowsHide:true,timeout:3000},activate);
+        }else activate();
+      };
+      if(target.webContents.isLoading())target.webContents.once('did-finish-load',ready);else ready();
     }
     async function openCodex() {
       void request('/dsh-pet-7340/ack','POST').catch(()=>{});
@@ -85,6 +106,11 @@ if (process.env.CODEX_PET_HELPER === '1') {
       panel.loadFile(path.join(root, 'panel.html'));
       panel.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
       panel.webContents.on('will-navigate', event => event.preventDefault());
+      const window=panel;
+      const releaseTopmost=()=>{if(!window.isDestroyed())window.setAlwaysOnTop(false);};
+      window.on('blur',releaseTopmost);
+      window.on('hide',releaseTopmost);
+      window.on('minimize',releaseTopmost);
       panel.on('close', event => { if (!quitting) { event.preventDefault(); panel.hide(); } });
     }
     function updateTray() {
@@ -129,6 +155,9 @@ if (process.env.CODEX_PET_HELPER === '1') {
         try {
         if (action === 'open-codex') { await openCodex(); return {ok:true}; }
         if (action === 'chat-state') return await request('/dsh-pet-7340/pet-chat');
+        if (action === 'reminders-state') return await request('/dsh-pet-7340/reminders');
+        if (action === 'reminders-command') return await request('/dsh-pet-7340/reminders','POST',message);
+        if (action === 'control') { setVisible(true); panel?.hide(); return await request('/dsh-pet-7340/control','POST'); }
         if (action === 'chat-command') return await request('/dsh-pet-7340/pet-chat','POST',message);
         if (action === 'reset') return await request('/dsh-pet-7340/reset','POST');
         if (action === 'chat') return await request('/dsh-pet-7340/chat?pet=main','POST',{text:String(message ?? '').slice(0,2000)});
@@ -143,6 +172,15 @@ if (process.env.CODEX_PET_HELPER === '1') {
         } catch (error) { return { ok: false, message: error.message || '操作暂未完成，请稍后重试。' }; }
       });
       createPanel();
+      let lastManagerRequest=Date.now();
+      const managerTimer=setInterval(()=>{
+        try {
+          const marker=JSON.parse(fs.readFileSync(path.join(data,'manager-request.json'),'utf8'));
+          if(marker.id>lastManagerRequest && marker.view==='reminders') {
+            lastManagerRequest=marker.id;showReminders();
+          }
+        }catch{}
+      },500);managerTimer.unref();
       const env = { ...backendEnvironment(), DSH_HOME: data, DSH_PET_ELECTRON_PATH: process.execPath,
         DSH_PET_ICON: icon, CODEX_PET_DESKTOP_BRIDGE:path.join(root,'DesktopBridge.exe'), CODEX_PET_HELPER: '1', CODEX_PET_CONTROL: control, CODEX_PET_MANAGER_PID: String(process.pid), CODEX_PET_HTTP_TOKEN: token };
       delete env.ELECTRON_RUN_AS_NODE;

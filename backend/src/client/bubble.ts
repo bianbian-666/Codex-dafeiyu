@@ -85,6 +85,7 @@ function rowsToNodes(h: typeof jsx, rows: BalanceBubbleRow[]): ReactNode {
   }
   // 其余：每行一个块（label 主行 / sub 次要行 / error 错误行）
   return rows.map((r, i) => {
+    if (r.role === 'stale') return h('div', { key: i, className: 'pet-bub-row pet-bub-sub', style: { fontStyle:'italic', opacity:.7 }, children: r.text });
     if (r.role === 'error') return h('div', { key: i, className: 'pet-bub-err', children: r.text });
     if (r.role === 'sub') return h('div', { key: i, className: 'pet-bub-row pet-bub-sub', children: r.text });
     return h('div', { key: i, className: 'pet-bub-row', children: r.text });

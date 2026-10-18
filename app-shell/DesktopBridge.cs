@@ -7,6 +7,7 @@ using System.Threading;
 class DesktopBridge {
  [StructLayout(LayoutKind.Sequential)] struct Rect {public int L,T,R,B;}
  [StructLayout(LayoutKind.Sequential)] struct MonitorInfo {public int size;public Rect monitor,work;public uint flags;}
+ [StructLayout(LayoutKind.Sequential)] struct Message {public IntPtr hwnd;public uint message;public UIntPtr wParam;public IntPtr lParam;public uint time;public int x,y;}
  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h,out Rect r);
  [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr h,uint flags);
@@ -16,9 +17,23 @@ class DesktopBridge {
  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
+ [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+ [DllImport("user32.dll")] static extern IntPtr SetActiveWindow(IntPtr h);
+ [DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr h);
+ [DllImport("user32.dll")] static extern bool PeekMessage(out Message message,IntPtr h,uint min,uint max,uint remove);
  [DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr h,int mode);
  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a,uint b,bool attach);
  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+ static int FocusWindow(IntPtr h) {
+  if(!IsWindow(h))return 1;
+  Message message;PeekMessage(out message,IntPtr.Zero,0,0,0);
+  uint ignored;uint fg=GetWindowThreadProcessId(GetForegroundWindow(),out ignored),me=GetCurrentThreadId(),target=GetWindowThreadProcessId(h,out ignored);
+  bool linked=fg!=0&&fg!=me&&AttachThreadInput(me,fg,true);
+  bool targetLinked=target!=0&&target!=me&&target!=fg&&AttachThreadInput(me,target,true);
+  try {ShowWindowAsync(h,IsIconic(h)?9:5);BringWindowToTop(h);SetForegroundWindow(h);SetActiveWindow(h);SetFocus(h);return GetForegroundWindow()==h?0:1;}
+  finally{if(targetLinked)AttachThreadInput(me,target,false);if(linked)AttachThreadInput(me,fg,false);}
+ }
  static bool Fullscreen() {
   var h=GetForegroundWindow(); if(h==IntPtr.Zero||IsIconic(h))return false;
   var name=new StringBuilder(128);GetClassName(h,name,128);
@@ -45,6 +60,7 @@ class DesktopBridge {
   }catch{return 1;}
  }
  static int Main(string[] args) {
+  if(args.Length==2&&args[0]=="--focus-window") {long handle;return long.TryParse(args[1],out handle)?FocusWindow(new IntPtr(handle)):2;}
   if(args.Length==1&&args[0]=="--check-codex"){uint pid;GetWindowThreadProcessId(GetForegroundWindow(),out pid);try{return Process.GetProcessById((int)pid).MainModule.FileName.IndexOf("OpenAI.Codex",StringComparison.OrdinalIgnoreCase)>=0?0:1;}catch{return 1;}}
   if(args.Length==2&&args[0]=="--open-codex")return OpenCodex(args[1]);
   if(args.Length!=2)return 2;

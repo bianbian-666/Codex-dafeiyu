@@ -137,3 +137,24 @@ window.addEventListener('resize', () => {
 
 injectAssets();
 void boot();
+window.petBridge?.onLifecycle?.(phase=>{
+  for(const s of sprites) {
+    s.closeMenu();
+    if(s.chatClose){s.chatClose();s.chatClose=null;s.chatOpen=false;}
+    s.dragState.active=false;s.dragState.dragging=false;s.justDragged=false;
+    if(Number.isInteger(s.activePointerId))try{s.hit.releasePointerCapture(s.activePointerId);}catch{}
+    s.activePointerId=null;s.dragTrail=[];
+    s.hit.classList.remove('dragging');
+    s.stage.style.transform='translateY('+s.bottomPad+'px)';
+    s.stopDragFollow();s.stopThrow();s.stopSquash();s.stopMove();
+    s.customPos={rx:(s.pos.x+s.halfW)/VIEW.w,ry:(s.pos.y+s.halfH)/VIEW.h};
+    s._interactive=null;s._inputBusy=null;s._inputRegions=null;
+    s.syncInputBusy();s.setInteractive(false);
+    if(phase==='resume') {
+      s.sendBounds(s.pos.x,s.pos.y);
+      const video=s.front===0?s.videoA:s.videoB;
+      if(video && video.src){if(video.error)video.load();video.play().catch(()=>s.playIdle());}
+    }
+  }
+  if(phase==='resume')pollStateNow();
+});

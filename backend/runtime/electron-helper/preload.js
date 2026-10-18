@@ -20,6 +20,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('petBridge', {
+  onLifecycle(cb) { ipcRenderer.on('pet:lifecycle', (_e,phase)=>cb(phase)); },
+  startControl(info) { ipcRenderer.send('pet:start-control',info); },
   openCodex() { ipcRenderer.send('pet:open-codex'); },
   setBounds(x, y, width, height, boxX, boxY, size, bottomPad, vx, vy) {
     ipcRenderer.send('pet:set-bounds', { x, y, width, height, boxX, boxY, size, bottomPad, vx, vy });
