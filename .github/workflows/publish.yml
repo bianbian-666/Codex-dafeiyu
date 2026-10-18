@@ -80,6 +80,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Source merge needs review; draft remains unpublished' }
           if ((git write-tree).Trim() -ne $env:SOURCE_TREE) { throw 'Imported tree differs from the verified source' }
           if ((Get-Content package.json -Raw | ConvertFrom-Json).version -ne $version) { throw 'Source version mismatch' }
+          $heading = [regex]::Escape("## v$version")
+          $section = [regex]::Match((Get-Content CHANGELOG.md -Raw -Encoding utf8), "(?ms)^$heading[ \t·][^\r\n]*\r?\n(.*?)(?=^## |\z)")
+          if (!$section.Success -or !$section.Groups[1].Value.Trim()) { throw 'Missing release notes for the requested version' }
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          [IO.File]::WriteAllText($notesFile, $section.Groups[1].Value.Trim() + "`n", [Text.UTF8Encoding]::new($false))
           if (git diff --cached --name-only -- .github/workflows) { throw 'Workflow files must be updated through the web editor first' }
           git commit -m "Release Codex-dafeiyu v$version from verified local source and artifact"
           if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
@@ -89,5 +94,6 @@ jobs:
       - name: Publish the verified draft without rebuilding
         shell: pwsh
         run: |
-          gh release edit "v$env:RELEASE_VERSION" --target $env:RELEASE_COMMIT --draft=false --latest --notes-file CHANGELOG.md
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          gh release edit "v$env:RELEASE_VERSION" --target $env:RELEASE_COMMIT --draft=false --latest --notes-file $notesFile
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
