@@ -32,6 +32,26 @@ async function freePort(){const s=net.createServer();await new Promise(r=>s.list
   let pet=petBrowser.contexts()[0].pages()[0];
   await pet.waitForFunction(()=>Array.from(document.querySelectorAll('video')).some(v=>v.readyState>=2&&v.videoWidth>0),{timeout:30000});
   console.log('PASS relocated Chinese/space/# path, first-run defaults, bundled runtime, decoded transparent animation');
+  // Exercise real Chromium input delivery over many press/release cycles. A
+  // forwarded move with no button flags can arrive after the native press.
+  for(let i=0;i<20;i++) {
+    await pet.evaluate(()=>{sprites[0].stopMove();sprites[0].stopThrow();});
+    const hit=await pet.locator('.pet-hit').boundingBox();
+    const x=hit.x+hit.width/2,y=hit.y+hit.height/2;
+    await pet.mouse.move(x,y);await pet.mouse.down();
+    await pet.waitForFunction(()=>sprites[0].dragState.active);
+    await pet.evaluate(()=>window.dispatchEvent(new MouseEvent('mousemove',{buttons:0})));
+    assert.equal(await pet.evaluate(()=>sprites[0].dragState.active),true);
+    await delay(80);
+    if(i%2===0) {
+      await pet.mouse.move(x+20,y-10,{steps:3});
+      await pet.waitForFunction(()=>sprites[0].dragState.dragging);
+    }
+    await pet.mouse.up();
+    await pet.waitForFunction(()=>!sprites[0].dragState.active&&sprites[0].activePointerId===null);
+    await delay(120);
+  }
+  console.log('PASS 20 real Chromium press/release cycles, 10 drags, queued forwarded moves and capture release');
   const log=fs.readFileSync(path.join(data,'profile','app.log'),'utf8');
   const base=log.match(/服务已监听 (http:\/\/127\.0\.0\.1:\d+)\//)?.[1];assert.ok(base);
   assert.equal((await fetch(base+'/health')).status,403);
