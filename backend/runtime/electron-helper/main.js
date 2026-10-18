@@ -459,7 +459,9 @@ function createPetWindows(replacement) {
       hasShadow: false,
       // 可聚焦：对话输入框/菜单需要窗口焦点才能打字（focusable:false 会让输入框永远无法聚焦）。
       // 显示时使用 showInactive()，不打断其它应用；用户主动点对话输入框时仍然允许获得焦点。
-      focusable: !process.env.CODEX_PET_HELPER,
+      // Keep activation capability stable for the lifetime of this HWND. Toggling
+      // it on pointerdown/up changes Chromium's native activation/capture state.
+      focusable: true,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
@@ -856,7 +858,7 @@ app.whenReady().then(() => {
     const input = inputRegions.get(win.id);
     // 渲染端的旧 menuOpen/chatOpen 守卫会请求整窗可交互；这里按真实光标和控件矩形裁定。
     const ignoring =
-      interactive && input && inputBusy.get(win.id)
+      inputBusy.get(win.id)
         ? decideWindowIgnore(win.getContentBounds(), screen.getCursorScreenPoint(), false, true, 0, input)
         : !interactive;
     setWindowIgnore(win, ignoring);
@@ -874,7 +876,6 @@ app.whenReady().then(() => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return;
     inputBusy.set(win.id, !!busy);
-    if(process.env.CODEX_PET_HELPER) win.setFocusable(!!busy);
   });
 
   ipcMain.on('pet:input-regions', (event, input) => {

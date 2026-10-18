@@ -5,7 +5,7 @@ function resetWindowInput(win, maps, setIgnore) {
   for (const map of maps) map.delete(win.id);
   setIgnore(win, false);
   setIgnore(win, true);
-  win.setFocusable(false);
+  // Reset input without changing the native window's activation capability.
 }
 function transitionWindow(win, visible, {reset, notify, geometry, health}) {
   if (win.isDestroyed() || visible === win.isVisible()) return false;

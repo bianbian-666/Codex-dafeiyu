@@ -792,6 +792,7 @@ class PetSprite {
   onPointerDown(e) {
     // 只认左键：右键进入拖拽判定会与右键菜单打架（右键不拖拽，两端一致）
     if (e.button !== 0) return;
+    this.setInteractive(true);
     // 抓取速度日志：stopThrow 之前读，否则飞行速度就没了；静止时记录 0（与浏览器同构）
     const grabState = this.throwState;
     console.log(
@@ -897,6 +898,7 @@ class PetSprite {
   }
 
   onPointerUp(e) {
+    if (e && e.pointerId !== this.activePointerId) return;
     const d = this.dragState;
     const wasDragging = d.dragging;
     d.active = false;
@@ -905,6 +907,11 @@ class PetSprite {
     this.stopDragFollow(); // 弹簧跟随立即停（位置定格在实时 this.pos）
     this.stage.style.transform = 'translateY(' + this.bottomPad + 'px)';
     this.syncInputBusy(); // 拖拽结束：交还给常规判定（幂等，非拖拽时多调一次不发 IPC）
+    const pointerId = this.activePointerId;
+    this.activePointerId = null;
+    if (Number.isInteger(pointerId)) {
+      try { this.hit.releasePointerCapture(pointerId); } catch {}
+    }
     // 提示复位：点击/拖拽期间收起的悬浮提示，指针仍在命中区内就恢复（与浏览器 handlePointerUp 同一处理）。
     // 用 hitRect 几何判定而不是 getBoundingClientRect：命中区是窗口坐标里的权威几何，与 onMouseMove 同源。
     // 位置有讲究：必须留在 syncInputBusy() 之后——pointer-target.test.ts 只扫本函数开头 400 字符
@@ -1093,8 +1100,11 @@ class PetSprite {
   onMouseMove(e) {
     // 拖拽态下所有按键已松开：说明 pointerup/pointercancel/lostpointercapture 全部丢失，
     // 就地按松手收尾，否则 dragState.active 与 inputBusy 永久为 true（穿透永不恢复）。
-    if (this.dragState.active && e.buttons === 0) {
-      this.onPointerUp(e);
+    // Electron's Windows forwarding hook posts WM_MOUSEMOVE with wParam=0,
+    // even while the left button is held. A queued forwarded move must not
+    // cancel a live captured press. Only recover when capture is also gone.
+    if (this.dragState.active && e.buttons === 0 && !this.hit.hasPointerCapture(this.activePointerId)) {
+      this.onPointerUp();
       return;
     }
     // 拖拽中窗口逐帧跟随光标、指针相对窗口坐标会有帧级抖动——强制保持可交互，绝不翻转（翻转会断拖拽）
